@@ -36,7 +36,7 @@ func main() {
 		log.Fatal("Error loading .env file")
 	}
 
-	resp, err := http.Get("https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/4.5_hour.csv")
+	resp, err := http.Get("https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/4.5_day.csv")
 	if err != nil {
 		log.Fatal("Failed to download CSV:", err)
 	}

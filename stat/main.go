@@ -36,13 +36,11 @@ type WeekStats struct {
 	Counts    [7]int
 }
 
-// BlueskyConfig Configuration for Bluesky API
 type BlueskyConfig struct {
 	Identifier string
 	Password   string
 }
 
-// Global variables
 var db *pebble.DB
 
 func main() {
