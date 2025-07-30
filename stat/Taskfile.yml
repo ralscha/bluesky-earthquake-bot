@@ -1,0 +1,17 @@
+version: '3'
+
+tasks:
+  build:
+    desc: Build the earthquake stats program for Linux AMD64
+    cmds:
+      - GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o bin/earthquakestats .
+    generates:
+      - bin/earthquakestats
+
+  clean:
+    desc: Clean build artifacts
+    cmds:
+      - rm -rf bin/
+
+  default:
+    deps: [build]

@@ -1,0 +1,17 @@
+version: '3'
+
+tasks:
+  build:
+    desc: Build the earthquake bot for Linux AMD64
+    cmds:
+      - GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o bin/bskyearthquake .
+    generates:
+      - bin/bskyearthquake
+
+  clean:
+    desc: Clean build artifacts
+    cmds:
+      - rm -rf bin/
+
+  default:
+    deps: [build]
