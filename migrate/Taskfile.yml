@@ -4,7 +4,9 @@ tasks:
   build:
     desc: Build the migration program
     cmds:
-      - GOOS=linux GOARCH=amd64 go build -ldflags="-s -w"-o bin/migrate.exe main.go
+      - GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o bin/migrate .
+    generates:
+      - bin/migrate
 
   default:
     deps: [build]
