@@ -98,40 +98,71 @@ func main() {
 
 	for _, q := range filtered {
 		key := []byte(q.ID)
-		_, closer, err := db.Get(key)
-		if err == nil {
-			closer.Close()
+
+		if q.Mag >= 5 && q.Mag < 6 {
+			_, closer, err := db.Get(key)
+			if err == nil {
+				closer.Close()
+				continue
+			}
+			if !errors.Is(err, pebble.ErrNotFound) {
+				log.Printf("Database error for ID %s: %v", q.ID, err)
+				continue
+			}
+
+			if err := postEarthquake(q, "", db, key); err != nil {
+				log.Printf("Failed to post earthquake ID %s: %v", q.ID, err)
+			}
 			continue
-		}
-		if !errors.Is(err, pebble.ErrNotFound) {
-			log.Printf("Database error for ID %s: %v", q.ID, err)
-			continue
-		}
+		} else {
+			value, closer, err := db.Get(key)
 
-		t, err := time.Parse("2006-01-02T15:04:05Z", q.Time)
-		if err != nil {
-			log.Printf("Failed to parse time for ID %s: %v", q.ID, err)
-			continue
-		}
+			if errors.Is(err, pebble.ErrNotFound) {
+				if err := postEarthquake(q, "", db, key); err != nil {
+					log.Printf("Failed to post earthquake ID %s: %v", q.ID, err)
+				}
+			} else if err == nil {
+				storedMagStr := string(value)
+				currentMagStr := fmt.Sprintf("%.1f", q.Mag)
+				closer.Close()
 
-		isoTimestamp := t.Format("2006-01-02 15:04:05 UTC")
-
-		fullURL := fmt.Sprintf("https://earthquake.usgs.gov/earthquakes/eventpage/%s/executive", q.ID)
-		shortURL := fmt.Sprintf("earthquake.usgs.gov/%s", q.ID)
-
-		msg := fmt.Sprintf("%.1f magnitude %s #%s\n%s\n%s\n\n%s",
-			q.Mag, earthquakeTypeByMagnitude(q.Mag), q.Type, isoTimestamp, q.Place, shortURL)
-
-		if err := postToBluesky(msg, q.Type, fullURL, shortURL); err != nil {
-			log.Printf("Failed to post for ID %s: %v", q.ID, err)
-			continue
-		}
-
-		if err := db.Set(key, []byte("posted"), &pebble.WriteOptions{}); err != nil {
-			log.Printf("Failed to store ID %s: %v", q.ID, err)
+				if storedMagStr != currentMagStr {
+					if err := postEarthquake(q, "Updated:\n", db, key); err != nil {
+						log.Printf("Failed to post updated earthquake ID %s: %v", q.ID, err)
+					}
+				}
+			} else {
+				log.Printf("Database error for ID %s: %v", q.ID, err)
+			}
 		}
 	}
 	_ = db.Flush()
+}
+
+func postEarthquake(q Earthquake, prefix string, db *pebble.DB, key []byte) error {
+	t, err := time.Parse("2006-01-02T15:04:05Z", q.Time)
+	if err != nil {
+		return fmt.Errorf("failed to parse time: %w", err)
+	}
+
+	isoTimestamp := t.Format("2006-01-02 15:04:05 UTC")
+
+	fullURL := fmt.Sprintf("https://earthquake.usgs.gov/earthquakes/eventpage/%s/executive", q.ID)
+	shortURL := fmt.Sprintf("earthquake.usgs.gov/%s", q.ID)
+
+	msg := fmt.Sprintf("%s%.1f magnitude %s #%s\n%s\n%s\n\n%s",
+		prefix, q.Mag, earthquakeTypeByMagnitude(q.Mag), q.Type, isoTimestamp, q.Place, shortURL)
+
+	if err := postToBluesky(msg, q.Type, fullURL, shortURL); err != nil {
+		return fmt.Errorf("failed to post to Bluesky: %w", err)
+	}
+
+	magnitudeBytes := []byte(fmt.Sprintf("%.1f", q.Mag))
+	if err := db.Set(key, magnitudeBytes, &pebble.WriteOptions{}); err != nil {
+		return fmt.Errorf("failed to store magnitude: %w", err)
+	}
+
+	return nil
 }
 
 func postToBluesky(text string, earthquakeType string, fullURL string, shortURL string) error {

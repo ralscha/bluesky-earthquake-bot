@@ -1,0 +1,19 @@
+version: '3'
+
+tasks:
+  build:
+    desc: Build the migration program
+    cmds:
+      - go build -o bin/migrate.exe main.go
+
+  run:
+    desc: Run the migration program
+    deps: [build]
+    cmds:
+      - bin/migrate.exe
+
+  clean:
+    desc: Clean build artifacts and databases
+    cmds:
+      - if exist bin rmdir /s /q bin
+      - if exist quake-db-new rmdir /s /q quake-db-new
