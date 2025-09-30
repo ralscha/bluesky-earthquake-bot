@@ -85,7 +85,7 @@ func main() {
 
 	var filtered []Earthquake
 	for _, q := range earthquakes {
-		if q.Mag >= 5 && q.Status == "reviewed" {
+		if q.Mag >= 5.5 && q.Status == "reviewed" {
 			filtered = append(filtered, q)
 		}
 	}
@@ -99,7 +99,7 @@ func main() {
 	for _, q := range filtered {
 		key := []byte(q.ID)
 
-		if q.Mag >= 5 && q.Mag < 6 {
+		if q.Mag >= 5.5 && q.Mag < 6 {
 			_, closer, err := db.Get(key)
 			if err == nil {
 				closer.Close()
