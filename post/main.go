@@ -22,12 +22,13 @@ import (
 )
 
 type Earthquake struct {
-	Time   string
-	Mag    float64
-	Status string
-	ID     string
-	Place  string
-	Type   string
+	Time          string
+	Mag           float64
+	Status        string
+	ID            string
+	Place         string
+	Type          string
+	IsSignificant bool
 }
 
 func main() {
@@ -36,51 +37,22 @@ func main() {
 		log.Fatal("Error loading .env file")
 	}
 
-	resp, err := http.Get("https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/4.5_day.csv")
-	if err != nil {
-		log.Fatal("Failed to download CSV:", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		log.Fatalf("Unexpected status code: %d", resp.StatusCode)
-	}
-
-	reader := csv.NewReader(resp.Body)
-	headers, err := reader.Read()
-	if err != nil {
-		log.Fatal("Failed to read CSV header:", err)
+	feedURLs := []struct {
+		url           string
+		isSignificant bool
+	}{
+		{"https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/significant_day.csv", true},
+		{"https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/4.5_day.csv", false},
 	}
 
 	var earthquakes []Earthquake
-	for {
-		record, err := reader.Read()
-		if err == io.EOF {
-			break
-		}
+	for _, feed := range feedURLs {
+		quakes, err := fetchEarthquakes(feed.url, feed.isSignificant)
 		if err != nil {
-			log.Fatal("Failed to read CSV record:", err)
-		}
-
-		quakeMap := make(map[string]string)
-		for i, h := range headers {
-			quakeMap[h] = record[i]
-		}
-
-		mag, err := strconv.ParseFloat(quakeMap["mag"], 64)
-		if err != nil {
-			log.Printf("Skipping invalid magnitude '%s' for ID %s", quakeMap["mag"], quakeMap["id"])
+			log.Printf("Failed to fetch from %s: %v", feed.url, err)
 			continue
 		}
-
-		earthquakes = append(earthquakes, Earthquake{
-			Time:   quakeMap["time"],
-			Mag:    mag,
-			Status: quakeMap["status"],
-			ID:     quakeMap["id"],
-			Place:  quakeMap["place"],
-			Type:   quakeMap["type"],
-		})
+		earthquakes = append(earthquakes, quakes...)
 	}
 
 	var filtered []Earthquake
@@ -139,6 +111,58 @@ func main() {
 	_ = db.Flush()
 }
 
+func fetchEarthquakes(url string, isSignificant bool) ([]Earthquake, error) {
+	resp, err := http.Get(url)
+	if err != nil {
+		return nil, fmt.Errorf("failed to download CSV: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
+	}
+
+	reader := csv.NewReader(resp.Body)
+	headers, err := reader.Read()
+	if err != nil {
+		return nil, fmt.Errorf("failed to read CSV header: %w", err)
+	}
+
+	var earthquakes []Earthquake
+	for {
+		record, err := reader.Read()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return nil, fmt.Errorf("failed to read CSV record: %w", err)
+		}
+
+		quakeMap := make(map[string]string)
+		for i, h := range headers {
+			quakeMap[h] = record[i]
+		}
+
+		mag, err := strconv.ParseFloat(quakeMap["mag"], 64)
+		if err != nil {
+			log.Printf("Skipping invalid magnitude '%s' for ID %s", quakeMap["mag"], quakeMap["id"])
+			continue
+		}
+
+		earthquakes = append(earthquakes, Earthquake{
+			Time:          quakeMap["time"],
+			Mag:           mag,
+			Status:        quakeMap["status"],
+			ID:            quakeMap["id"],
+			Place:         quakeMap["place"],
+			Type:          quakeMap["type"],
+			IsSignificant: isSignificant,
+		})
+	}
+
+	return earthquakes, nil
+}
+
 func postEarthquake(q Earthquake, prefix string, db *pebble.DB, key []byte) error {
 	t, err := time.Parse("2006-01-02T15:04:05Z", q.Time)
 	if err != nil {
@@ -150,6 +174,10 @@ func postEarthquake(q Earthquake, prefix string, db *pebble.DB, key []byte) erro
 	fullURL := fmt.Sprintf("https://earthquake.usgs.gov/earthquakes/eventpage/%s/executive", q.ID)
 	shortURL := fmt.Sprintf("earthquake.usgs.gov/%s", q.ID)
 
+	if q.IsSignificant && prefix == "" {
+		prefix = "Significant earthquake\n"
+	}
+
 	msg := fmt.Sprintf("%s%.1f magnitude %s #%s\n%s\n%s\n\n%s",
 		prefix, q.Mag, earthquakeTypeByMagnitude(q.Mag), q.Type, isoTimestamp, q.Place, shortURL)
 
@@ -157,7 +185,7 @@ func postEarthquake(q Earthquake, prefix string, db *pebble.DB, key []byte) erro
 		return fmt.Errorf("failed to post to Bluesky: %w", err)
 	}
 
-	magnitudeBytes := []byte(fmt.Sprintf("%.1f", q.Mag))
+	magnitudeBytes := fmt.Appendf(nil, "%.1f", q.Mag)
 	if err := db.Set(key, magnitudeBytes, &pebble.WriteOptions{}); err != nil {
 		return fmt.Errorf("failed to store magnitude: %w", err)
 	}
