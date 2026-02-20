@@ -63,7 +63,7 @@ func main() {
 			continue
 		}
 
-		magnitudeBytes := []byte(fmt.Sprintf("%.1f", earthquake.Mag))
+		magnitudeBytes := fmt.Appendf(nil, "%.1f", earthquake.Mag)
 
 		if err := newDB.Set(iter.Key(), magnitudeBytes, &pebble.WriteOptions{}); err != nil {
 			log.Printf("Failed to store earthquake ID %s: %v", earthquakeID, err)
