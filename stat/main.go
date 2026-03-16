@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/bluesky-social/indigo/api/atproto"
@@ -347,23 +348,23 @@ func generateReports(weeklyStats map[string]WeekStats) ReportData {
 	}
 
 	// Build report text
-	var reportText string
-	reportText += "Weekly Earthquake Report\n"
-	reportText += fmt.Sprintf("%s (%s - %s)\n\n", lastWeek, startTimeStr, endTimeStr)
+	var reportText strings.Builder
+	reportText.WriteString("Weekly Earthquake Report\n")
+	reportText.WriteString(fmt.Sprintf("%s (%s - %s)\n\n", lastWeek, startTimeStr, endTimeStr))
 
 	var total int
 	for i, count := range stats.Counts {
-		reportText += fmt.Sprintf("%s: %d\n", categories[i], count)
+		reportText.WriteString(fmt.Sprintf("%s: %d\n", categories[i], count))
 		total += count
 	}
-	reportText += fmt.Sprintf("\nTotal: %d", total)
+	reportText.WriteString(fmt.Sprintf("\nTotal: %d", total))
 
 	// Print report to console as well
-	fmt.Println(reportText)
+	fmt.Println(reportText.String())
 
 	return ReportData{
 		WeekKey:    lastWeek,
-		ReportText: reportText,
+		ReportText: reportText.String(),
 		ShouldPost: true,
 	}
 }
