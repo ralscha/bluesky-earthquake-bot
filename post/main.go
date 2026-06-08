@@ -33,7 +33,7 @@ type Earthquake struct {
 
 func main() {
 	err := godotenv.Load()
-	if err != nil {
+	if err != nil && !os.IsNotExist(err) {
 		log.Fatal("Error loading .env file")
 	}
 
@@ -112,7 +112,8 @@ func main() {
 }
 
 func fetchEarthquakes(url string, isSignificant bool) ([]Earthquake, error) {
-	resp, err := http.Get(url)
+	client := &http.Client{Timeout: 30 * time.Second}
+	resp, err := client.Get(url)
 	if err != nil {
 		return nil, fmt.Errorf("failed to download CSV: %w", err)
 	}
@@ -122,7 +123,12 @@ func fetchEarthquakes(url string, isSignificant bool) ([]Earthquake, error) {
 		return nil, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
 	}
 
-	reader := csv.NewReader(resp.Body)
+	return parseEarthquakesCSV(resp.Body, isSignificant)
+}
+
+func parseEarthquakesCSV(r io.Reader, isSignificant bool) ([]Earthquake, error) {
+	reader := csv.NewReader(r)
+	reader.FieldsPerRecord = -1
 	headers, err := reader.Read()
 	if err != nil {
 		return nil, fmt.Errorf("failed to read CSV header: %w", err)
@@ -138,9 +144,11 @@ func fetchEarthquakes(url string, isSignificant bool) ([]Earthquake, error) {
 			return nil, fmt.Errorf("failed to read CSV record: %w", err)
 		}
 
-		quakeMap := make(map[string]string)
+		quakeMap := make(map[string]string, len(headers))
 		for i, h := range headers {
-			quakeMap[h] = record[i]
+			if i < len(record) {
+				quakeMap[h] = record[i]
+			}
 		}
 
 		mag, err := strconv.ParseFloat(quakeMap["mag"], 64)
@@ -164,7 +172,7 @@ func fetchEarthquakes(url string, isSignificant bool) ([]Earthquake, error) {
 }
 
 func postEarthquake(q Earthquake, prefix string, db *pebble.DB, key []byte) error {
-	t, err := time.Parse("2006-01-02T15:04:05Z", q.Time)
+	t, err := time.Parse(time.RFC3339Nano, q.Time)
 	if err != nil {
 		return fmt.Errorf("failed to parse time: %w", err)
 	}
@@ -194,14 +202,25 @@ func postEarthquake(q Earthquake, prefix string, db *pebble.DB, key []byte) erro
 }
 
 func postToBluesky(text string, earthquakeType string, fullURL string, shortURL string) error {
-	client := &xrpc.Client{Host: "https://me.rasc.ch"}
+	identifier := os.Getenv("BLUESKY_IDENTIFIER")
+	password := os.Getenv("BLUESKY_PASSWORD")
+	if identifier == "" || password == "" {
+		return fmt.Errorf("missing Bluesky credentials in environment variables")
+	}
+
+	host := os.Getenv("BLUESKY_HOST")
+	if host == "" {
+		host = "https://me.rasc.ch"
+	}
+
+	client := &xrpc.Client{Host: host}
 
 	auth, err := atproto.ServerCreateSession(
 		context.Background(),
 		client,
 		&atproto.ServerCreateSession_Input{
-			Identifier: os.Getenv("BLUESKY_IDENTIFIER"),
-			Password:   os.Getenv("BLUESKY_PASSWORD"),
+			Identifier: identifier,
+			Password:   password,
 		},
 	)
 	if err != nil {

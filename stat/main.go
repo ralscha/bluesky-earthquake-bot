@@ -5,8 +5,6 @@ import (
 	"encoding/csv"
 	"errors"
 	"fmt"
-	"github.com/bluesky-social/indigo/lex/util"
-	"github.com/joho/godotenv"
 	"io"
 	"log"
 	"net/http"
@@ -19,8 +17,10 @@ import (
 
 	"github.com/bluesky-social/indigo/api/atproto"
 	"github.com/bluesky-social/indigo/api/bsky"
+	"github.com/bluesky-social/indigo/lex/util"
 	"github.com/bluesky-social/indigo/xrpc"
 	"github.com/cockroachdb/pebble"
+	"github.com/joho/godotenv"
 )
 
 type Earthquake struct {
@@ -46,7 +46,7 @@ var db *pebble.DB
 
 func main() {
 	err := godotenv.Load()
-	if err != nil {
+	if err != nil && !os.IsNotExist(err) {
 		log.Fatal("Error loading .env file")
 	}
 
@@ -61,12 +61,17 @@ func main() {
 
 	// Download CSV file
 	url := "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_month.csv"
-	resp, err := http.Get(url)
+	client := &http.Client{Timeout: 30 * time.Second}
+	resp, err := client.Get(url)
 	if err != nil {
 		fmt.Printf("Error downloading file: %v\n", err)
 		return
 	}
 	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		fmt.Printf("Unexpected status code downloading file: %d\n", resp.StatusCode)
+		return
+	}
 
 	// Parse CSV data
 	earthquakes, err := parseCSV(resp.Body)
@@ -144,8 +149,13 @@ func postToBluesky(reportText string) error {
 	}
 
 	// Create a Bluesky client
+	host := os.Getenv("BLUESKY_HOST")
+	if host == "" {
+		host = "https://me.rasc.ch"
+	}
+
 	client := &xrpc.Client{
-		Host: "https://me.rasc.ch",
+		Host: host,
 		Auth: &xrpc.AuthInfo{},
 	}
 
@@ -187,9 +197,10 @@ func postToBluesky(reportText string) error {
 
 func parseCSV(r io.Reader) ([]Earthquake, error) {
 	reader := csv.NewReader(r)
+	reader.FieldsPerRecord = -1
 
-	// Skip header
-	if _, err := reader.Read(); err != nil {
+	headers, err := reader.Read()
+	if err != nil {
 		return nil, err
 	}
 
@@ -203,26 +214,27 @@ func parseCSV(r io.Reader) ([]Earthquake, error) {
 			return nil, err
 		}
 
-		// Parse time
-		t, err := time.Parse(time.RFC3339, record[0])
-		if err != nil {
-			// Try parsing with nanoseconds
-			t, err = time.Parse(time.RFC3339Nano, record[0])
-			if err != nil {
-				continue // skip invalid timestamps
+		quakeMap := make(map[string]string, len(headers))
+		for i, h := range headers {
+			if i < len(record) {
+				quakeMap[h] = record[i]
 			}
 		}
 
-		// Parse magnitude
-		mag, err := strconv.ParseFloat(record[4], 64)
+		t, err := time.Parse(time.RFC3339Nano, quakeMap["time"])
 		if err != nil {
-			continue // skip invalid magnitudes
+			continue
+		}
+
+		mag, err := strconv.ParseFloat(quakeMap["mag"], 64)
+		if err != nil {
+			continue
 		}
 
 		earthquakes = append(earthquakes, Earthquake{
 			Time:      t.UTC(),
 			Magnitude: mag,
-			Place:     record[13],
+			Place:     quakeMap["place"],
 		})
 	}
 	return earthquakes, nil
