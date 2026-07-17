@@ -19,7 +19,7 @@ require (
 	github.com/cockroachdb/tokenbucket v0.0.0-20250429170803-42689b6311bb // indirect
 	github.com/earthboundkid/versioninfo/v2 v2.24.1 // indirect
 	github.com/felixge/httpsnoop v1.1.0 // indirect
-	github.com/getsentry/sentry-go v0.47.0 // indirect
+	github.com/getsentry/sentry-go v0.48.0 // indirect
 	github.com/go-logr/logr v1.4.3 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
@@ -44,7 +44,7 @@ require (
 	github.com/klauspost/cpuid/v2 v2.4.0 // indirect
 	github.com/kr/pretty v0.3.1 // indirect
 	github.com/kr/text v0.2.0 // indirect
-	github.com/mattn/go-isatty v0.0.22 // indirect
+	github.com/mattn/go-isatty v0.0.23 // indirect
 	github.com/minio/sha256-simd v1.0.1 // indirect
 	github.com/mr-tron/base58 v1.3.0 // indirect
 	github.com/multiformats/go-base32 v0.1.0 // indirect
@@ -58,7 +58,7 @@ require (
 	github.com/polydawn/refmt v0.90.0 // indirect
 	github.com/prometheus/client_golang v1.23.2 // indirect
 	github.com/prometheus/client_model v0.6.2 // indirect
-	github.com/prometheus/common v0.69.0 // indirect
+	github.com/prometheus/common v0.70.0 // indirect
 	github.com/prometheus/procfs v0.21.1 // indirect
 	github.com/rogpeppe/go-internal v1.15.0 // indirect
 	github.com/spaolacci/murmur3 v1.1.0 // indirect
