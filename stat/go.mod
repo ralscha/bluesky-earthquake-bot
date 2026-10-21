@@ -1,9 +1,9 @@
 module earthquakestats
 
-go 1.27.2
+go 1.27.3
 
 require (
-	github.com/bluesky-social/indigo v0.0.0-20261013190618-3beb6e491b79
+	github.com/bluesky-social/indigo v0.0.0-20261020220836-ff87442ff936
 	github.com/cockroachdb/pebble v1.1.5
 	github.com/joho/godotenv v1.5.1
 )
@@ -41,7 +41,7 @@ require (
 	github.com/ipfs/go-log/v2 v2.9.2 // indirect
 	github.com/ipfs/go-metrics-interface v0.3.0 // indirect
 	github.com/klauspost/compress v1.20.3 // indirect
-	github.com/klauspost/cpuid/v2 v2.4.0 // indirect
+	github.com/klauspost/cpuid/v2 v2.4.1 // indirect
 	github.com/kr/pretty v0.3.1 // indirect
 	github.com/kr/text v0.2.0 // indirect
 	github.com/mattn/go-isatty v0.0.24 // indirect
